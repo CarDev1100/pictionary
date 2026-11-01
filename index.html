@@ -1,0 +1,828 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Pictionary">
+<meta name="theme-color" content="#fbf4e4">
+<title>Pictionary Night</title>
+<style>
+  :root {
+    --paper: #fbf4e4;
+    --paper-deep: #f2e6cb;
+    --ink: #2a2622;
+    --muted: #6d645a;
+    --line: #d9caa8;
+    --a: #d2451e;
+    --a-soft: #fbdcd0;
+    --b: #14706e;
+    --b-soft: #cdeae6;
+    --good: #2c7a3f;
+    --bad: #b3261e;
+    --team: var(--a);
+    --team-soft: var(--a-soft);
+    --hand: "Marker Felt", "Chalkboard SE", "Segoe Print", "Comic Sans MS", cursive;
+    --body: ui-rounded, "SF Pro Rounded", -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  body.team-b { --team: var(--b); --team-soft: var(--b-soft); }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    height: 100%; margin: 0; overflow: hidden;
+    overscroll-behavior: none;
+    -webkit-user-select: none; user-select: none;
+    -webkit-touch-callout: none;
+    touch-action: manipulation;
+  }
+  body {
+    position: fixed; inset: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 19px;
+    line-height: 1.35;
+  }
+  h1, h2, h3, p { margin: 0; }
+  button, input { font: inherit; color: inherit; }
+  button {
+    min-height: 52px; padding: 10px 22px;
+    border: 3px solid var(--ink); border-radius: 14px;
+    background: #fff; color: var(--ink);
+    font-weight: 700; cursor: pointer;
+    box-shadow: 0 4px 0 var(--ink);
+    transition: transform .06s, box-shadow .06s;
+    touch-action: manipulation;
+  }
+  button:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
+  button:focus-visible, input:focus-visible { outline: 3px solid var(--team); outline-offset: 2px; }
+  button.primary { background: var(--team); color: #fff; }
+  button.go { background: var(--good); color: #fff; }
+  button.big { font-size: 24px; min-height: 68px; padding: 12px 36px; }
+  button.plain { border-color: var(--line); box-shadow: none; color: var(--muted); background: transparent; }
+  input[type=text] {
+    width: 100%; min-height: 52px; padding: 8px 14px;
+    border: 3px solid var(--ink); border-radius: 12px; background: #fff;
+    -webkit-user-select: text; user-select: text;
+    font-size: 20px; font-weight: 600;
+  }
+
+  .screen {
+    position: absolute; inset: 0; display: none;
+    overflow-y: auto; -webkit-overflow-scrolling: touch;
+    padding: calc(20px + env(safe-area-inset-top)) calc(20px + env(safe-area-inset-right))
+             calc(20px + env(safe-area-inset-bottom)) calc(20px + env(safe-area-inset-left));
+  }
+  .screen.on { display: flex; flex-direction: column; }
+  .center { align-items: center; justify-content: safe center; text-align: center; gap: 22px; }
+  .wrap { width: 100%; max-width: 760px; margin: auto; display: flex; flex-direction: column; gap: 20px; }
+
+  .title { font-family: var(--hand); font-size: clamp(52px, 10vw, 84px); line-height: 1; text-align: center; font-weight: 700; }
+  .title span { color: var(--a); }
+  .title span + span { color: var(--b); }
+  .tag { text-align: center; color: var(--muted); }
+  .field-label { font-weight: 800; margin-bottom: 8px; display: block; }
+  .team-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .team-row label:first-child input { border-color: var(--a); }
+  .team-row label:last-child input { border-color: var(--b); }
+  .team-row label:first-child .field-label { color: var(--a); }
+  .team-row label:last-child .field-label { color: var(--b); }
+  .chips { display: flex; flex-wrap: wrap; gap: 10px; }
+  .chip {
+    min-height: 48px; padding: 6px 18px; border-width: 2px; border-radius: 999px;
+    box-shadow: none; background: #fff; font-weight: 600;
+  }
+  .chip:active { transform: none; box-shadow: none; }
+  .chip[aria-pressed=true] { background: var(--ink); color: #fff; }
+  .rules { background: var(--paper-deep); border-radius: 14px; padding: 14px 18px; font-size: 17px; }
+  .start-row { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+  #setup .start-row { position: sticky; bottom: -20px; padding: 10px 0 20px; background: var(--paper); }
+
+  .scores { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; width: 100%; max-width: 640px; }
+  .score { border: 3px solid var(--ink); border-radius: 16px; padding: 12px; background: #fff; text-align: center; }
+  .score.a { background: var(--a-soft); }
+  .score.b { background: var(--b-soft); }
+  .score.up { outline: 4px solid var(--ink); outline-offset: 3px; }
+  .score .name { font-weight: 800; overflow-wrap: anywhere; }
+  .score .num { font-family: var(--hand); font-size: 64px; line-height: 1.1; }
+  .score .fix { display: flex; justify-content: center; gap: 10px; }
+  .score .fix button { min-height: 40px; min-width: 52px; padding: 0; border-width: 2px; box-shadow: none; font-size: 20px; }
+  .kicker { color: var(--muted); font-weight: 700; letter-spacing: .04em; text-transform: uppercase; font-size: 16px; }
+  .turn-name { font-family: var(--hand); font-size: clamp(40px, 8vw, 66px); line-height: 1.1; color: var(--team); overflow-wrap: anywhere; }
+
+  .words { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; width: 100%; max-width: 900px; }
+  .word-card {
+    display: flex; flex-direction: column; justify-content: center; gap: 8px;
+    min-height: 200px; padding: 16px 12px;
+    font-size: clamp(22px, 3.4vw, 32px); overflow-wrap: anywhere;
+  }
+  .word-card small { font-size: 16px; color: var(--muted); font-weight: 700; }
+  .word-card:nth-child(1) { background: #dff1dc; }
+  .word-card:nth-child(2) { background: #fdf0bf; }
+  .word-card:nth-child(3) { background: #f9d6d0; }
+
+  /* Draw screen */
+  #draw.on { display: grid; gap: 8px; padding: calc(8px + env(safe-area-inset-top)) calc(10px + env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) calc(10px + env(safe-area-inset-left)); overflow: hidden; }
+  #draw { grid-template-columns: minmax(0, 1fr) 176px; grid-template-rows: auto 8px minmax(0, 1fr); grid-template-areas: "bar bar" "prog prog" "pad tools"; }
+  .bar { grid-area: bar; display: flex; align-items: center; gap: 10px; }
+  .bar button { min-height: 52px; padding: 6px 14px; white-space: nowrap; flex: none; }
+  .bar .who { font-weight: 800; color: var(--team); overflow-wrap: anywhere; line-height: 1.1; min-width: 0; font-size: 17px; }
+  .bar .spacer { flex: 1; }
+  #clock { font-family: var(--hand); font-size: 44px; line-height: 1; min-width: 92px; text-align: center; font-variant-numeric: tabular-nums; }
+  #clock.low { color: var(--bad); animation: pulse .8s infinite; }
+  @keyframes pulse { 50% { transform: scale(1.15); } }
+  .prog { grid-area: prog; background: var(--paper-deep); border-radius: 4px; overflow: hidden; }
+  #progFill { height: 100%; width: 100%; background: var(--team); transform-origin: left; }
+  #pad { grid-area: pad; position: relative; display: flex; align-items: center; justify-content: center; min-height: 0; min-width: 0; }
+  canvas {
+    display: block; background: #fff; border: 3px solid var(--ink); border-radius: 10px;
+    touch-action: none; cursor: crosshair;
+  }
+  #peekBubble {
+    position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 3;
+    background: var(--ink); color: #fff; padding: 10px 26px; border-radius: 14px;
+    font-size: 30px; font-weight: 800; display: none; pointer-events: none; text-align: center;
+  }
+  .tools { grid-area: tools; display: flex; flex-direction: column; gap: 10px; min-height: 0; justify-content: center; }
+  .swatches { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
+  .swatch { min-height: 0; aspect-ratio: 1; padding: 0; border: 3px solid var(--line); border-radius: 50%; box-shadow: none; }
+  .swatch:active { transform: none; box-shadow: none; }
+  .swatch[aria-pressed=true] { border-color: var(--ink); outline: 3px solid var(--ink); outline-offset: 1px; }
+  .sizes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+  .size, .tool { min-height: 50px; padding: 0; border-width: 2px; box-shadow: none; display: flex; align-items: center; justify-content: center; font-size: 17px; }
+  .size:active, .tool:active { box-shadow: none; }
+  .size[aria-pressed=true], .tool[aria-pressed=true] { background: var(--ink); color: #fff; }
+  .size i { display: block; border-radius: 50%; background: currentColor; }
+  .tool-group { display: grid; grid-template-columns: 1fr; gap: 7px; }
+
+  #sheet {
+    position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 4;
+    width: min(620px, calc(100% - 24px));
+    background: var(--paper); border: 3px solid var(--ink); border-radius: 18px;
+    padding: 16px 20px; text-align: center; display: none;
+    box-shadow: 0 6px 0 var(--ink);
+  }
+  #sheet.on { display: flex; flex-direction: column; gap: 10px; }
+  #sheet h2 { font-family: var(--hand); font-size: 32px; line-height: 1.1; overflow-wrap: anywhere; }
+  #sheetWord { font-size: 34px; font-weight: 800; color: var(--team); overflow-wrap: anywhere; }
+  #sheetBtns { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+  #pause {
+    position: absolute; inset: 0; z-index: 10; background: var(--paper);
+    display: none; flex-direction: column; align-items: center; justify-content: center; gap: 22px;
+  }
+  #pause.on { display: flex; }
+  #pause h2 { font-family: var(--hand); font-size: 56px; }
+
+  #winner { font-family: var(--hand); font-size: clamp(44px, 9vw, 76px); line-height: 1.1; overflow-wrap: anywhere; }
+  .bit {
+    position: fixed; top: -24px; width: 13px; height: 20px; z-index: 20; pointer-events: none;
+    animation: fall linear forwards;
+  }
+  @keyframes fall { to { transform: translateY(110vh) rotate(720deg); } }
+
+  /* Portrait: tools go under the canvas */
+  @media (orientation: portrait) {
+    #draw { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 8px minmax(0, 1fr) auto; grid-template-areas: "bar" "prog" "pad" "tools"; }
+    .tools { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px 14px; }
+    .swatches { grid-template-columns: repeat(8, 40px); gap: 6px; }
+    .sizes { grid-template-columns: repeat(3, 46px); }
+    .tool-group { grid-template-columns: repeat(3, 70px); }
+  }
+  @media (orientation: portrait) and (max-width: 720px) {
+    .swatches { grid-template-columns: repeat(8, 36px); }
+    .bar .who { display: none; }
+  }
+  @media (max-width: 560px) {
+    .words { grid-template-columns: 1fr; }
+    .word-card { min-height: 104px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #clock.low { animation: none; }
+    .bit { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<section id="setup" class="screen">
+  <div class="wrap">
+    <h1 class="title"><span>Picti</span><span>onary</span></h1>
+    <p class="tag">Two teams. One iPad. Questionable art.</p>
+    <div class="team-row">
+      <label><span class="field-label">Team 1</span><input id="nameA" type="text" maxlength="18" autocomplete="off" placeholder="Red Team"></label>
+      <label><span class="field-label">Team 2</span><input id="nameB" type="text" maxlength="18" autocomplete="off" placeholder="Blue Team"></label>
+    </div>
+    <div><span class="field-label">Turns per team</span><div class="chips" id="roundChips"></div></div>
+    <div><span class="field-label">Time to draw</span><div class="chips" id="timeChips"></div></div>
+    <div><span class="field-label">Word categories</span><div class="chips" id="catChips"></div></div>
+    <div><span class="field-label">Options</span><div class="chips">
+      <button class="chip" id="stealChip" type="button">Steals</button>
+      <button class="chip" id="soundChip" type="button">Sound</button>
+    </div></div>
+    <p class="rules">The drawer picks a word worth 1, 2, or 3 points and draws it for their team. No letters, numbers, or talking. If time runs out, the other team gets one guess to steal the points.</p>
+    <div class="start-row">
+      <button id="resumeBtn" class="big" type="button" hidden>Resume game</button>
+      <button id="startBtn" class="big primary" type="button">Start game</button>
+    </div>
+  </div>
+</section>
+
+<section id="handoff" class="screen center">
+  <p class="kicker" id="roundLabel"></p>
+  <div class="scores" id="handoffScores"></div>
+  <div>
+    <p class="turn-name" id="turnName"></p>
+    <p>Pick your drawer and hand them the iPad. Everyone else, look away!</p>
+  </div>
+  <button id="drawerBtn" class="big primary" type="button">I'm the drawer</button>
+  <button id="quitBtn" class="plain" type="button">End game</button>
+</section>
+
+<section id="pick" class="screen center">
+  <h2 class="turn-name">Pick a word</h2>
+  <p>The timer starts the moment you tap. Then the word disappears, so remember it!</p>
+  <div class="words" id="wordCards"></div>
+  <button id="swapBtn" type="button">Show me 3 different words</button>
+</section>
+
+<section id="draw" class="screen">
+  <div class="bar">
+    <button id="pauseBtn" type="button" aria-label="Pause">Pause</button>
+    <div class="who" id="drawWho"></div>
+    <div class="spacer"></div>
+    <div id="clock" role="timer">1:00</div>
+    <div class="spacer"></div>
+    <button id="peekBtn" type="button">Hold to peek</button>
+    <button id="giveUpBtn" type="button">Give up</button>
+    <button id="gotBtn" class="go" type="button">Got it!</button>
+  </div>
+  <div class="prog"><div id="progFill"></div></div>
+  <div id="pad">
+    <canvas id="board" width="2048" height="1536"></canvas>
+    <div id="peekBubble"></div>
+    <div id="sheet" role="dialog" aria-live="polite">
+      <h2 id="sheetTitle"></h2>
+      <p id="sheetSub"></p>
+      <div id="sheetWord"></div>
+      <div id="sheetBtns"></div>
+    </div>
+  </div>
+  <div class="tools">
+    <div class="swatches" id="swatches"></div>
+    <div class="sizes" id="sizes"></div>
+    <div class="tool-group">
+      <button class="tool" id="eraserBtn" type="button" aria-pressed="false">Eraser</button>
+      <button class="tool" id="undoBtn" type="button">Undo</button>
+      <button class="tool" id="clearBtn" type="button">Clear</button>
+    </div>
+  </div>
+  <div id="pause">
+    <h2>Paused</h2>
+    <p>The drawing is hidden until you resume.</p>
+    <button id="resumeTurnBtn" class="big primary" type="button">Resume</button>
+  </div>
+</section>
+
+<section id="finish" class="screen center">
+  <p class="kicker">Final score</p>
+  <div id="winner"></div>
+  <div class="scores" id="finishScores"></div>
+  <div class="start-row">
+    <button id="suddenBtn" class="big primary" type="button" hidden>Sudden death round</button>
+    <button id="againBtn" class="big" type="button">New game</button>
+  </div>
+</section>
+
+<script>
+const WORDS = {
+  Halloween: {
+    easy: ['pumpkin','ghost','bat','witch hat','candy','spider','moon','broom','skull','black cat','cauldron','candy corn'],
+    medium: ['haunted house','jack-o-lantern','vampire','mummy','skeleton','spider web','graveyard','trick or treat','werewolf','scarecrow','zombie','costume'],
+    hard: ['Frankenstein','grim reaper','bobbing for apples','corn maze','full moon howl','Dracula','monster mash','crystal ball','headless horseman','potion','hayride','pumpkin carving']
+  },
+  'Everyday stuff': {
+    easy: ['chair','cup','key','book','shoe','clock','phone','umbrella','pencil','door','lamp','spoon'],
+    medium: ['toothbrush','backpack','ladder','scissors','toaster','mailbox','doorbell','vacuum','wheelbarrow','sunglasses','light switch','remote control'],
+    hard: ['fire extinguisher','shopping cart','ceiling fan','parking meter','traffic cone','bunk bed','vending machine','escalator','smoke detector','garage door','hair dryer','paper clip']
+  },
+  Animals: {
+    easy: ['cat','dog','fish','bird','snake','pig','cow','duck','bee','frog','turtle','rabbit'],
+    medium: ['giraffe','elephant','penguin','octopus','kangaroo','crab','shark','owl','peacock','snail','dolphin','lobster'],
+    hard: ['platypus','chameleon','jellyfish','sloth','hermit crab','anteater','porcupine','narwhal','seahorse','armadillo','praying mantis','flying squirrel']
+  },
+  Food: {
+    easy: ['apple','pizza','banana','egg','ice cream','cake','cookie','carrot','hot dog','donut','cheese','grapes'],
+    medium: ['taco','hamburger','popcorn','pancakes','spaghetti','watermelon','sushi','pretzel','french fries','corn on the cob','sandwich','cupcake'],
+    hard: ['s\'mores','fortune cookie','gingerbread house','chicken nugget','banana split','lemonade stand','wedding cake','birthday candles','kebab','food truck','peanut butter and jelly','trail mix']
+  },
+  Actions: {
+    easy: ['run','sleep','swim','jump','eat','read','sing','dance','cry','fly','wave','kick'],
+    medium: ['juggling','fishing','brushing teeth','skateboarding','surfing','snoring','sneezing','bowling','painting','skiing','rock climbing','walking the dog'],
+    hard: ['doing laundry','parallel parking','stubbing your toe','photobombing','sleepwalking','tug of war','high five','hide and seek','taking a selfie','moonwalking','brain freeze','jumping rope']
+  },
+  Places: {
+    easy: ['house','beach','school','castle','farm','island','park','zoo','bridge','volcano','tent','library'],
+    medium: ['lighthouse','airport','hospital','igloo','pyramid','roller coaster','swimming pool','movie theater','waterfall','barn','bakery','treehouse'],
+    hard: ['Eiffel Tower','Statue of Liberty','Grand Canyon','Mount Rushmore','Great Wall of China','space station','North Pole','Bermuda Triangle','Stonehenge','Leaning Tower of Pisa','drive-through','haunted mine']
+  },
+  'Characters & Things': {
+    easy: ['robot','pirate','king','queen','clown','superhero','alien','ninja','dinosaur','dragon','mermaid','snowman'],
+    medium: ['astronaut','wizard','unicorn','cowboy','firefighter','fairy','knight','rocket ship','submarine','tornado','rainbow','treasure chest'],
+    hard: ['Bigfoot','Loch Ness Monster','Santa\'s workshop','tooth fairy','time machine','black hole','Trojan horse','genie in a lamp','Cinderella\'s slipper','mad scientist','solar eclipse','FIRST robotics robot']
+  }
+};
+const TIERS = [['easy', 1, 'Easy'], ['medium', 2, 'Medium'], ['hard', 3, 'Hard']];
+const COLORS = ['#111111', '#e02b20', '#f08a00', '#f5c800', '#2fa84f', '#1c6fe0', '#8a3fd1', '#8b5a2b'];
+const SIZES = [8, 18, 38];
+const SAVE_KEY = 'pictionary.game.v1';
+const PREF_KEY = 'pictionary.prefs.v1';
+
+const $ = id => document.getElementById(id);
+const store = {
+  get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+  del(k) { try { localStorage.removeItem(k); } catch (e) {} }
+};
+
+let prefs = Object.assign({
+  names: ['', ''], rounds: 5, time: 60, steal: true, sound: true, cats: Object.keys(WORDS)
+}, store.get(PREF_KEY) || {});
+prefs.cats = prefs.cats.filter(c => WORDS[c]);
+if (!prefs.cats.length) prefs.cats = Object.keys(WORDS);
+
+let game = null;     // {names, rounds, time, steal, sound, cats, scores, turn, used}
+let turn = null;     // {team, word, points}
+let timer = null;
+let remaining = 0;
+let endsAt = 0;
+let refresh = null;  // redraws the screen showing the scoreboard
+let wakeLock = null;
+
+function show(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', s.id === id));
+  if (id === 'draw') fitBoard();
+}
+function setTeamColors(team) { document.body.classList.toggle('team-b', team === 1); }
+function teamName(i) { return game.names[i]; }
+function totalTurns() { return game.rounds * 2; }
+function saveGame() { store.set(SAVE_KEY, game); }
+
+/* ---------- Sound ---------- */
+let audio = null;
+function unlockAudio() {
+  if (!audio) {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (Ctx) audio = new Ctx();
+  }
+  if (audio && audio.state === 'suspended') audio.resume();
+}
+function tone(freq, secs, delay = 0, type = 'triangle') {
+  if (!audio || !game || !game.sound) return;
+  const t = audio.currentTime + delay;
+  const osc = audio.createOscillator();
+  const gain = audio.createGain();
+  osc.type = type;
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0.25, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + secs);
+  osc.connect(gain).connect(audio.destination);
+  osc.start(t);
+  osc.stop(t + secs);
+}
+const chime = () => [523, 659, 784].forEach((f, i) => tone(f, 0.25, i * 0.1));
+const buzzer = () => tone(150, 0.7, 0, 'sawtooth');
+const tick = () => tone(880, 0.1);
+
+/* ---------- Setup screen ---------- */
+function chipGroup(el, options, isOn, onTap) {
+  el.textContent = '';
+  options.forEach(([value, label]) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'chip';
+    b.textContent = label;
+    b.setAttribute('aria-pressed', isOn(value));
+    b.onclick = () => { onTap(value); renderSetup(); };
+    el.append(b);
+  });
+}
+function renderSetup() {
+  chipGroup($('roundChips'), [3, 5, 8, 10].map(n => [n, String(n)]), v => prefs.rounds === v, v => prefs.rounds = v);
+  chipGroup($('timeChips'), [[45, '45 sec'], [60, '1 min'], [90, '1.5 min'], [120, '2 min']], v => prefs.time === v, v => prefs.time = v);
+  chipGroup($('catChips'), Object.keys(WORDS).map(c => [c, c]), v => prefs.cats.includes(v), v => {
+    if (!prefs.cats.includes(v)) prefs.cats.push(v);
+    else if (prefs.cats.length > 1) prefs.cats = prefs.cats.filter(c => c !== v);
+  });
+  $('stealChip').setAttribute('aria-pressed', prefs.steal);
+  $('soundChip').setAttribute('aria-pressed', prefs.sound);
+  $('resumeBtn').hidden = !store.get(SAVE_KEY);
+}
+$('nameA').value = prefs.names[0];
+$('nameB').value = prefs.names[1];
+$('stealChip').onclick = () => { prefs.steal = !prefs.steal; renderSetup(); };
+$('soundChip').onclick = () => { prefs.sound = !prefs.sound; renderSetup(); };
+$('startBtn').onclick = () => {
+  unlockAudio();
+  prefs.names = [$('nameA').value.trim(), $('nameB').value.trim()];
+  store.set(PREF_KEY, prefs);
+  game = {
+    names: [prefs.names[0] || 'Red Team', prefs.names[1] || 'Blue Team'],
+    rounds: prefs.rounds, time: prefs.time, steal: prefs.steal, sound: prefs.sound,
+    cats: prefs.cats.slice(), scores: [0, 0], turn: 0, used: []
+  };
+  showHandoff();
+};
+$('resumeBtn').onclick = () => {
+  unlockAudio();
+  game = store.get(SAVE_KEY);
+  showHandoff();
+};
+
+/* ---------- Scoreboard ---------- */
+function renderScores(el, activeTeam) {
+  el.textContent = '';
+  [0, 1].forEach(i => {
+    const card = document.createElement('div');
+    card.className = 'score ' + (i ? 'b' : 'a') + (i === activeTeam ? ' up' : '');
+    const name = document.createElement('div');
+    name.className = 'name';
+    name.textContent = teamName(i);
+    const num = document.createElement('div');
+    num.className = 'num';
+    num.textContent = game.scores[i];
+    const fix = document.createElement('div');
+    fix.className = 'fix';
+    [[-1, '−'], [1, '+']].forEach(([delta, label]) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = label;
+      b.setAttribute('aria-label', (delta > 0 ? 'Add a point to ' : 'Take a point from ') + teamName(i));
+      b.onclick = () => {
+        game.scores[i] = Math.max(0, game.scores[i] + delta);
+        saveGame();
+        refresh();
+      };
+      fix.append(b);
+    });
+    card.append(name, num, fix);
+    el.append(card);
+  });
+}
+
+/* ---------- Turn flow ---------- */
+function showHandoff() {
+  if (game.turn >= totalTurns()) return showFinish(true);
+  const team = game.turn % 2;
+  saveGame();
+  setTeamColors(team);
+  refresh = showHandoff;
+  $('roundLabel').textContent = `Turn ${Math.floor(game.turn / 2) + 1} of ${game.rounds}`;
+  renderScores($('handoffScores'), team);
+  $('turnName').textContent = `Up next: ${teamName(team)}`;
+  show('handoff');
+}
+$('quitBtn').onclick = () => { if (confirm('End this game now?')) showFinish(true, true); };
+$('drawerBtn').onclick = () => { unlockAudio(); dealWords(); show('pick'); };
+$('swapBtn').onclick = dealWords;
+
+function drawWord(tier) {
+  const all = game.cats.flatMap(c => WORDS[c][tier]);
+  let pool = all.filter(w => !game.used.includes(w));
+  if (!pool.length) {
+    game.used = game.used.filter(w => !all.includes(w));
+    pool = all;
+  }
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+function dealWords() {
+  const box = $('wordCards');
+  box.textContent = '';
+  TIERS.forEach(([tier, points, label]) => {
+    const word = drawWord(tier);
+    game.used.push(word);
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'word-card';
+    const pts = document.createElement('small');
+    pts.textContent = `${label} · ${points} point${points > 1 ? 's' : ''}`;
+    b.append(pts, word);
+    b.onclick = () => startTurn(word, points);
+    box.append(b);
+  });
+  saveGame();
+}
+
+function startTurn(word, points) {
+  turn = { team: game.turn % 2, word, points };
+  clearBoard();
+  penSeen = false;
+  hideSheet();
+  setDrawingEnabled(true);
+  $('drawWho').textContent = `${teamName(turn.team)} · ${points} pt${points > 1 ? 's' : ''}`;
+  $('peekBubble').textContent = word;
+  remaining = game.time * 1000;
+  show('draw');
+  runTimer();
+  keepAwake();
+}
+function runTimer() {
+  endsAt = Date.now() + remaining;
+  clearInterval(timer);
+  timer = setInterval(updateClock, 150);
+  updateClock();
+}
+function stopTimer() {
+  clearInterval(timer);
+  timer = null;
+  remaining = Math.max(0, endsAt - Date.now());
+}
+let lastSecond = 0;
+function updateClock() {
+  const left = Math.max(0, endsAt - Date.now());
+  const secs = Math.ceil(left / 1000);
+  $('clock').textContent = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+  $('clock').classList.toggle('low', secs <= 10);
+  $('progFill').style.transform = `scaleX(${left / (game.time * 1000)})`;
+  if (secs !== lastSecond && secs > 0 && secs <= 5) tick();
+  lastSecond = secs;
+  if (left <= 0) timeUp('Time\'s up!');
+}
+async function keepAwake() {
+  try { wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
+}
+function letSleep() {
+  if (wakeLock) wakeLock.release().catch(() => {});
+  wakeLock = null;
+}
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && timer) keepAwake();
+});
+
+$('pauseBtn').onclick = () => {
+  if (!timer) return;
+  stopTimer();
+  $('pause').classList.add('on');
+};
+$('resumeTurnBtn').onclick = () => {
+  $('pause').classList.remove('on');
+  runTimer();
+};
+$('gotBtn').onclick = () => {
+  if (!timer) return;
+  chime();
+  game.scores[turn.team] += turn.points;
+  finishTurn();
+  showSheet(`+${turn.points} for ${teamName(turn.team)}!`, '', turn.word, [['Next turn', nextTurn, 'primary']]);
+};
+$('giveUpBtn').onclick = () => { if (timer) timeUp('Gave up!'); };
+
+function finishTurn() {
+  stopTimer();
+  letSleep();
+  setDrawingEnabled(false);
+  $('clock').classList.remove('low');
+  $('peekBubble').style.display = 'none';
+  game.turn++;
+  saveGame();
+}
+function timeUp(title) {
+  buzzer();
+  finishTurn();
+  if (!game.steal) {
+    return showSheet(title, 'The word was', turn.word, [['Next turn', nextTurn, 'primary']]);
+  }
+  const other = 1 - turn.team;
+  setTeamColors(other);
+  showSheet(title, `${teamName(other)}: one guess to steal ${turn.points}! Say it out loud.`, '', [
+    ['Show the word', () => {
+      showSheet(`Did ${teamName(other)} get it?`, '', turn.word, [
+        ['Yes, stolen!', () => {
+          chime();
+          game.scores[other] += turn.points;
+          saveGame();
+          showSheet(`+${turn.points} for ${teamName(other)}!`, '', turn.word, [['Next turn', nextTurn, 'primary']]);
+        }, 'go'],
+        ['No', nextTurn]
+      ]);
+    }, 'primary']
+  ]);
+}
+function nextTurn() { hideSheet(); showHandoff(); }
+
+function showSheet(title, sub, word, btns) {
+  $('sheetTitle').textContent = title;
+  $('sheetSub').textContent = sub;
+  $('sheetSub').hidden = !sub;
+  $('sheetWord').textContent = word;
+  $('sheetWord').hidden = !word;
+  const box = $('sheetBtns');
+  box.textContent = '';
+  btns.forEach(([label, fn, cls]) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = label;
+    if (cls) b.className = cls;
+    b.onclick = fn;
+    box.append(b);
+  });
+  $('sheet').classList.add('on');
+}
+function hideSheet() { $('sheet').classList.remove('on'); }
+
+function showFinish(party, ended) {
+  refresh = () => showFinish(false);
+  setTeamColors(0);
+  if (ended) game.turn = totalTurns();
+  saveGame();
+  const [a, b] = game.scores;
+  const tied = a === b;
+  $('winner').textContent = tied ? 'It\'s a tie!' : `${teamName(a > b ? 0 : 1)} wins!`;
+  renderScores($('finishScores'));
+  $('suddenBtn').hidden = !tied;
+  show('finish');
+  if (party && !tied) confetti();
+}
+$('suddenBtn').onclick = () => { game.rounds++; showHandoff(); };
+$('againBtn').onclick = () => {
+  store.del(SAVE_KEY);
+  game = null;
+  setTeamColors(0);
+  renderSetup();
+  show('setup');
+};
+function confetti() {
+  for (let i = 0; i < 70; i++) {
+    const bit = document.createElement('div');
+    bit.className = 'bit';
+    bit.style.left = Math.random() * 100 + 'vw';
+    bit.style.background = COLORS[i % COLORS.length];
+    bit.style.animationDuration = 2 + Math.random() * 2.5 + 's';
+    bit.style.animationDelay = Math.random() * 1.2 + 's';
+    bit.addEventListener('animationend', () => bit.remove());
+    document.body.append(bit);
+  }
+}
+
+/* ---------- Word peek ---------- */
+const peek = $('peekBtn');
+const setPeek = on => { $('peekBubble').style.display = on && timer ? 'block' : 'none'; };
+peek.addEventListener('pointerdown', () => setPeek(true));
+['pointerup', 'pointercancel', 'pointerleave'].forEach(t => peek.addEventListener(t, () => setPeek(false)));
+peek.addEventListener('contextmenu', e => e.preventDefault());
+
+/* ---------- Drawing ---------- */
+const board = $('board');
+const ctx = board.getContext('2d');
+let strokes = [];
+let active = null;
+let drawingEnabled = false;
+let penSeen = false;
+let color = COLORS[0];
+let size = SIZES[1];
+let erasing = false;
+
+function fitBoard() {
+  const pad = $('pad').getBoundingClientRect();
+  if (!pad.width || !pad.height) return;
+  const scale = Math.min(pad.width / board.width, pad.height / board.height);
+  board.style.width = Math.floor(board.width * scale) + 'px';
+  board.style.height = Math.floor(board.height * scale) + 'px';
+}
+new ResizeObserver(fitBoard).observe($('pad'));
+
+function setDrawingEnabled(on) { drawingEnabled = on; active = null; }
+function wipe() {
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, board.width, board.height);
+}
+function clearBoard() { strokes = []; wipe(); }
+function repaint() {
+  wipe();
+  strokes.forEach(s => {
+    if (s.clear) return wipe();
+    s.mid = null;
+    dot(s);
+    for (let i = 1; i < s.pts.length; i++) segment(s, i);
+    capStroke(s);
+  });
+}
+function prep(s) {
+  ctx.strokeStyle = ctx.fillStyle = s.color;
+  ctx.lineWidth = s.size;
+  ctx.lineCap = ctx.lineJoin = 'round';
+}
+function dot(s) {
+  prep(s);
+  const p = s.pts[0];
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, s.size / 2, 0, Math.PI * 2);
+  ctx.fill();
+}
+function segment(s, i) {
+  const a = s.pts[i - 1], b = s.pts[i];
+  const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  const from = s.mid || a;
+  prep(s);
+  ctx.beginPath();
+  ctx.moveTo(from.x, from.y);
+  ctx.quadraticCurveTo(a.x, a.y, mid.x, mid.y);
+  ctx.stroke();
+  s.mid = mid;
+}
+function capStroke(s) {
+  if (!s.mid) return;
+  const last = s.pts[s.pts.length - 1];
+  prep(s);
+  ctx.beginPath();
+  ctx.moveTo(s.mid.x, s.mid.y);
+  ctx.lineTo(last.x, last.y);
+  ctx.stroke();
+}
+function boardPoint(e) {
+  const r = board.getBoundingClientRect();
+  return { x: (e.clientX - r.left) * board.width / r.width, y: (e.clientY - r.top) * board.height / r.height };
+}
+board.addEventListener('pointerdown', e => {
+  if (!drawingEnabled || !timer) return;
+  if (e.pointerType === 'pen') {
+    penSeen = true;
+    // A resting palm can land before the Pencil does
+    if (active && active.pointerType === 'touch') { strokes.pop(); active = null; repaint(); }
+  }
+  if (e.pointerType === 'touch' && penSeen) return;
+  if (active) return;
+  e.preventDefault();
+  board.setPointerCapture(e.pointerId);
+  active = {
+    id: e.pointerId, pointerType: e.pointerType, mid: null,
+    color: erasing ? '#fff' : color,
+    size: erasing ? size * 2 : size,
+    pts: [boardPoint(e)]
+  };
+  strokes.push(active);
+  dot(active);
+});
+board.addEventListener('pointermove', e => {
+  if (!active || e.pointerId !== active.id) return;
+  const list = e.getCoalescedEvents ? e.getCoalescedEvents() : [];
+  (list.length ? list : [e]).forEach(ev => {
+    active.pts.push(boardPoint(ev));
+    segment(active, active.pts.length - 1);
+  });
+});
+function endStroke(e) {
+  if (!active || e.pointerId !== active.id) return;
+  capStroke(active);
+  active = null;
+}
+board.addEventListener('pointerup', endStroke);
+board.addEventListener('pointercancel', endStroke);
+// Stops iPadOS from scrolling or showing the magnifier while drawing
+board.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
+document.addEventListener('gesturestart', e => e.preventDefault());
+
+function renderTools() {
+  const sw = $('swatches');
+  sw.textContent = '';
+  COLORS.forEach((c, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'swatch';
+    b.style.background = c;
+    b.setAttribute('aria-label', ['Black', 'Red', 'Orange', 'Yellow', 'Green', 'Blue', 'Purple', 'Brown'][i]);
+    b.setAttribute('aria-pressed', !erasing && c === color);
+    b.onclick = () => { color = c; erasing = false; renderTools(); };
+    sw.append(b);
+  });
+  const sz = $('sizes');
+  sz.textContent = '';
+  SIZES.forEach((s, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'size';
+    b.setAttribute('aria-label', ['Thin', 'Medium', 'Thick'][i] + ' brush');
+    b.setAttribute('aria-pressed', s === size);
+    const blob = document.createElement('i');
+    blob.style.width = blob.style.height = 6 + i * 8 + 'px';
+    b.append(blob);
+    b.onclick = () => { size = s; renderTools(); };
+    sz.append(b);
+  });
+  $('eraserBtn').setAttribute('aria-pressed', erasing);
+}
+$('eraserBtn').onclick = () => { erasing = !erasing; renderTools(); };
+$('undoBtn').onclick = () => { if (drawingEnabled && !active) { strokes.pop(); repaint(); } };
+$('clearBtn').onclick = () => {
+  if (drawingEnabled && !active && strokes.length) { strokes.push({ clear: true }); wipe(); }
+};
+
+/* ---------- Boot ---------- */
+wipe();
+renderTools();
+renderSetup();
+show('setup');
+</script>
+</body>
+</html>
